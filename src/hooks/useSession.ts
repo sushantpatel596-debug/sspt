@@ -14,7 +14,8 @@ export function useSession() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(isConfigured)
   useEffect(() => {
-    if (!supabase) {
+    const client = supabase
+    if (!client) {
       const role = localStorage.getItem(demoKey) as Role | null
       if (role && demoProfiles[role]) {
         setProfile(demoProfiles[role])
@@ -28,14 +29,14 @@ export function useSession() {
       if (!alive) return
       setSession(s)
       if (!s) { setProfile(null); setLoading(false); return }
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', s.user.id).single()
+      const { data, error } = await client.from('profiles').select('*').eq('id', s.user.id).single()
       if (!alive) return
       if (error) console.error('Profile load failed:', error.message)
       setProfile(data as Profile | null)
       setLoading(false)
     }
-    supabase.auth.getSession().then(({ data }) => load(data.session))
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => { void load(s) })
+    client.auth.getSession().then(({ data }) => load(data.session))
+    const { data: listener } = client.auth.onAuthStateChange((_event, s) => { void load(s) })
     return () => { alive = false; listener.subscription.unsubscribe() }
   }, [])
   return { session, profile, loading, configured: true }

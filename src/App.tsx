@@ -60,13 +60,14 @@ export default function App() {
  const visibleNav=nav.filter(n=>(n.roles as readonly string[]).includes(role))
  const load=async()=>{
    if(!profile)return
-   if(!supabase){setStudents(demoStudents);setAlerts(demoAlerts);setCompanies(demoCompanies);setApplications(demoApplications);setBusy(false);setLoadError('');return}
+   const client=supabase
+   if(!client){setStudents(demoStudents);setAlerts(demoAlerts);setCompanies(demoCompanies);setApplications(demoApplications);setBusy(false);setLoadError('');return}
    setBusy(true);setLoadError('')
    const [st,al,co,ap]=await Promise.all([
-     supabase.from('student_overview').select('*').order('readiness_score',{ascending:false}).limit(100),
-     supabase.from('alerts').select('*').order('created_at',{ascending:false}).limit(8),
-     supabase.from('companies').select('id,name,industry,website,created_at').order('name'),
-     supabase.from('applications').select('id,status,created_at,students(full_name),jobs(title,companies(name))').order('created_at',{ascending:false}).limit(30)
+     client.from('student_overview').select('*').order('readiness_score',{ascending:false}).limit(100),
+     client.from('alerts').select('*').order('created_at',{ascending:false}).limit(8),
+     client.from('companies').select('id,name,industry,website,created_at').order('name'),
+     client.from('applications').select('id,status,created_at,students(full_name),jobs(title,companies(name))').order('created_at',{ascending:false}).limit(30)
    ])
    if(st.error) setLoadError(st.error.message)
    else setStudents((st.data??[]) as Student[])
@@ -77,13 +78,14 @@ export default function App() {
  }
  useEffect(()=>{void load()},[profile?.id])
  useEffect(()=>{
-   if(!supabase||!profile)return
-   const channel=supabase.channel('sspt-live')
+   const client=supabase
+   if(!client||!profile)return
+   const channel=client.channel('sspt-live')
      .on('postgres_changes',{event:'*',schema:'public',table:'students'},()=>void load())
      .on('postgres_changes',{event:'*',schema:'public',table:'alerts'},()=>void load())
      .on('postgres_changes',{event:'*',schema:'public',table:'applications'},()=>void load())
      .subscribe()
-   return()=>{void supabase.removeChannel(channel)}
+   return()=>{void client.removeChannel(channel)}
  },[profile?.id])
  const filtered=useMemo(()=>students.filter(s=>`${s.full_name} ${s.roll_no} ${s.department}`.toLowerCase().includes(query.toLowerCase())),[students,query])
  const avg=students.length?students.reduce((a,s)=>a+Number(s.cgpa),0)/students.length:0
@@ -123,7 +125,7 @@ function Overview({role,students,avg,ready,alerts,companies,applications,profile
  const trend = Array.from({length:6},(_,i)=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-(5-i));const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;return {month:d.toLocaleString('en',{month:'short'}),applications:applications.filter(a=>String(a.created_at).slice(0,7)===key).length}})
  const own=students.find(s=>s.profile_id===profile.id)
  const cards=role==='student'?[['Your CGPA',own?.cgpa?.toFixed(2)??'—','Academic performance'],['Attendance',own?`${own.attendance_pct}%`:'—','Class attendance'],['Coding score',own?.coding_score??'—','Assessment score'],['Readiness',own?`${own.readiness_score}%`:'—','Placement readiness']]:[['Total students',students.length,'Across all departments'],['Placement ready',ready,`${students.length?Math.round(ready/students.length*100):0}% of tracked students`],['Average CGPA',avg.toFixed(2),'Institution-wide average'],['Companies',companies.length,'Partner organizations']]
- return <><div className="stats-grid">{cards.map((c,i)=><StatCard key={c[0]} label={c[0]} value={c[1]} detail={c[2]} icon={[<Users/>,<Target/>,<GraduationCap/>,<Building2/>][i]} tone={['blue','violet','cyan','orange'][i]}/>)}</div>
+ return <><div className="stats-grid">{cards.map((c,i)=><StatCard key={c[0]} label={c[0]} value={String(c[1])} detail={String(c[2])} icon={[<Users/>,<Target/>,<GraduationCap/>,<Building2/>][i]} tone={['blue','violet','cyan','orange'][i]}/>)}</div>
  <div className="dashboard-grid"><section className="panel chart-panel"><div className="panel-head"><div><h3>Application activity</h3><p>Applications created per month from live records</p></div><span className="period-select">Last 6 months</span></div><div className="chart-area"><ResponsiveContainer width="100%" height="100%"><AreaChart data={trend}><defs><linearGradient id="placedFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#315efb" stopOpacity={.2}/><stop offset="100%" stopColor="#315efb" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#edf1f8" vertical={false}/><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill:'#8a96aa',fontSize:12}}/><YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{fill:'#8a96aa',fontSize:12}}/><Tooltip/><Area type="monotone" dataKey="applications" stroke="#315efb" strokeWidth={2.5} fill="url(#placedFill)" name="Applications"/></AreaChart></ResponsiveContainer></div></section>
  <section className="panel"><div className="panel-head"><div><h3>Readiness distribution</h3><p>Students by readiness band</p></div><Target size={19} className="muted"/></div><div className="readiness-total"><strong>{students.length?Math.round(ready/students.length*100):0}%</strong><span>meeting readiness target</span></div><div className="band-list"><Band label="Placement ready" count={ready} total={students.length} color="blue"/><Band label="In progress" count={students.filter(s=>s.readiness_score>=40&&s.readiness_score<70).length} total={students.length} color="violet"/><Band label="Needs support" count={students.filter(s=>s.readiness_score<40).length} total={students.length} color="orange"/></div><div className="ai-tip"><Sparkles size={17}/><p><b>Placement insight</b><br/>Focus skill-building plans on students below the 70% readiness threshold.</p></div></section></div>
  <div className="lower-grid"><section className="panel"><div className="panel-head"><div><h3>Recent student activity</h3><p>Highest readiness scores</p></div><span className="linkish">View all</span></div><StudentTableCompact students={students.slice(0,5)}/></section><section className="panel"><div className="panel-head"><div><h3>Live alerts</h3><p>Latest system notifications</p></div><span className="alert-dot"/></div><div className="alerts-list">{alerts.length?alerts.slice(0,5).map(a=><div className="alert-row" key={a.id}><span className="alert-icon"><Bell size={15}/></span><div><b>{a.title}</b><p>{a.message}</p><small>{new Date(a.created_at).toLocaleString()}</small></div></div>):<div className="empty">No alerts at the moment.</div>}</div></section></div></>}

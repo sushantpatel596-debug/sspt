@@ -1,4 +1,4 @@
-import { Search, ArrowUpRight } from 'lucide-react'
+import { Search } from 'lucide-react'
 import type { Student } from '../lib/supabase'
 export default function StudentTable({students,query,onQuery}:{students:Student[];query:string;onQuery:(v:string)=>void}) {
  return <section className="panel"><div className="panel-head"><div><h3>Student directory</h3><p>Live academic and placement readiness records</p></div><div className="searchbox"><Search size={16}/><input value={query} onChange={e=>onQuery(e.target.value)} placeholder="Search students"/></div></div>
